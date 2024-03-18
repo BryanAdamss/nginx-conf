@@ -1,9 +1,12 @@
 # Nginx配置
 
+- 在线可视化配置
+	- https://www.digitalocean.com/community/tools/nginx?global.app.lang=zhCN
+
 ## 配置文件结构
 
 ```nginx
-user nginx; # 指定运行 Nginx 的用户，通常是指定系统中存在的非特权用户。需要确保该用户对 Nginx 所需的文件和目录有适当的访问权限。
+user nginx; # 指定运行 Nginx 的用户和用户组，通常是指定系统中存在的非特权用户。需要确保该用户对 Nginx 所需的文件和目录有适当的访问权限。
 
 worker_processes auto; # 设置 worker 进程数，可以是数字或 `auto`。通常设置为 CPU 核心数的倍数，以充分利用系统资源。
 
@@ -34,17 +37,18 @@ http {
 	# 配置访问日志的路径并使用main这种log_format。这是全局日志，会记录所有server块的访问记录
     access_log /var/log/nginx/access.log main;
 
-    # 可以有多个 `server` 块，用于配置不同的虚拟主机
+    # 可以有多个 `server` 块，用于配置不同的虚拟主机，一个server块代表一个虚拟主机
     server {
         # 服务器配置
-        listen 80; # 监听的 IP 地址和端口号。
+        listen 80; # 监听的 IP 地址和端口号，不带ip则默认当前服务器ip。
         server_name example.com; # 设置虚拟主机的域名。
-        root /usr/share/nginx/html; # 设置网站根目录。
-        index index.html index.htm; # 设置默认首页文件。
+        root /usr/share/nginx/html; # 设置网站根目录，从哪找网站资源。
+        index index.html index.htm; # 设置默认首页文件，nginx首页找的文件。
 
 		# 设置当前server的访问日志路径并使用http中定义的main日志格式。
 		# 其仅仅记录当前server的访问日志
-		access_log /var/log/nginx/access.log main; 
+		access_log /var/log/nginx/access-example.log main; 
+		error_log log/example_error.log; # 当前虚拟主机的错误日志
 		error_page 404 /404.html; # 配置自定义错误页面。
 
 		# 配置全局的gzip，也可在server中单独配置
@@ -59,6 +63,7 @@ http {
 		# 可以包含多个 `location` 块，用于配置不同的路径规则，location匹配原理见下面的章节
 		location / {
 			# 处理所有未匹配到其他 location 的请求
+			# autoindex on; # 开启自己创建索引目录功能，一般不开启，只在做些简单的静态内容索引时用上
 			
 			try_files $uri $uri/ /index.html; # 尝试文件路径，用于处理静态文件。
 
@@ -371,4 +376,43 @@ sudo systemctl reload nginx # 重启
 # or
 
 sudo service nginx restart # 重启
+```
+
+## URL重写
+
+- 域名迁移时可以使用URL重写保证流量顺利迁移到新域名
+- 主要用到`nginx`的`rewrite`功能，`rewrite`可以实现`url`的重写、规范化
+- 实用场景
+	- 读取`ua`，对爬虫封禁
+	- 动态的`url`伪装成静态的`html`页面，便于搜索引擎抓取
+	- 新旧域名的更新和迁移
+- 语法
+
+```nginx
+rewrite regex replacement [flag];
+```
+
+- `regex` 是一个正则表达式，用于匹配需要重写的 URL。
+    - `replacement` 是一个字符串，用于指定替换的内容。可以使用捕获组来引用正则表达式中的匹配结果。
+    - `flag` 是一个可选的标志，用于指定重写规则的行为。常用的标志包括：
+        - `last`：表示完成重写操作后停止匹配。
+        - `break`：与 `last` 类似，但不会重新尝试匹配其他重写规则。
+        - `redirect`：发出临时重定向（HTTP 状态码 302）。
+        - `permanent`：发出永久重定向（HTTP 状态码 301）。
+        - `if`：条件重写。
+- 示例
+
+```nginx
+# 将所有请求重写到 index.html
+rewrite ^(.*)$ /index.html;
+
+# 重写以 /old 开头的 URL 到以 /new 开头的 URL
+rewrite ^/old(.*)$ /new$1;
+
+# 使用正则表达式捕获组进行替换
+rewrite ^/blog/(.*)$ /article/$1;
+
+# 发出永久重定向
+rewrite ^/oldpage$ /newpage permanent;
+
 ```
