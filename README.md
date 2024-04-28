@@ -40,8 +40,8 @@ http {
     # 可以有多个 `server` 块，用于配置不同的虚拟主机，一个server块代表一个虚拟主机
     server {
         # 服务器配置
-        listen 80; # 监听的 IP 地址和端口号，不带ip则默认当前服务器ip。
-        server_name example.com; # 设置虚拟主机的域名。
+        listen 80; # 监听的本机某ip地址和端口号，不带ip则默认当前服务器ip。一个服务器可以通过虚拟网络接口技术或在物理网卡上添加多个ip的形式，实现多个ip访问同一台机器；
+        server_name example.com; # 设置虚拟主机的域名。进入的请求会携带Host头，server_name和Host头一致 且 请求访问的ip+port和listen匹配，则代表访问的当前server块；当通过ip+port访问，但请求不带Host或Host同server_name不匹配，则无法进入到当前server块，而是进入到nginx的defaultServer，默认server，可通过在listen后指定deafultServer标识来确定，或没有server_name的server也会当成默认server；
         root /usr/share/nginx/html; # 设置网站根目录，从哪找网站资源。
         index index.html index.htm; # 设置默认首页文件，nginx首页找的文件。
 
@@ -416,3 +416,24 @@ rewrite ^/blog/(.*)$ /article/$1;
 rewrite ^/oldpage$ /newpage permanent;
 
 ```
+
+## 同一台机器绑定多个ip的方法
+
+- 添加虚拟网络接口（Virtual Network Interface）即IP别名（IP aliasing）
+	- 这种方式在同一台机器上创建多个网络接口，每一个接口都有自己的IP地址。你可以使用`ifconfig`命令创建额外的接口。比如，下面的命令就创建了一个名为`eth0:1`的虚拟接口，并且给它分配了`192.168.1.2`这个IP地址：
+
+```bash
+sudo ifconfig eth0:1 192.168.1.2
+```
+
+- 在物理网卡上添加额外的IP地址
+	- 对于支持绑定多个ip的网卡，你也可以直接在其上添加多个IP地址。你可以使用`ip`命令添加额外的地址。比如，下面的命令就在`eth0`接口上添加了`192.168.1.2`这个IP地址：
+
+```bash
+sudo ip addr add 192.168.1.2 dev eth0
+```
+
+- 区别
+	- 虚拟网络接口（IP别名）。在这种方式中，虽然物理硬件只有一块，但是在逻辑上我们创建了多个网络接口，每个接口都有各自单独的名字和IP地址。例如，我们可以创建一个名为eth0:1的接口，同时为它分配一个IP地址。这种方式的优点是，它可以清晰地分隔开不同的网络接口和对应的IP地址。
+	- 在物理网卡上添加额外的IP地址。这种方式中，我们在同一物理网络接口上绑定了多个IP地址。也就是说，这个网络接口有一个主IP地址，同时还有一个或多个附属IP地址。所有这些地址都属于同一个网络接口，并且可以在这个接口上同时使用。
+	- 这两种方式的主要区别在于，虚拟网络接口的方法在逻辑上创建了多个网络接口，每个接口都有自己独立的名字和IP地址，这在一些情况下可能使网络配置更清晰；而在物理网卡上添加额外IP地址的方法则将所有地址都绑定在同一个网络接口上。
